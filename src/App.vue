@@ -2,7 +2,7 @@
   <v-app>
     <v-app-bar app dense>
       <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
-      <v-toolbar-title>Musician's Workflow</v-toolbar-title>
+      <v-toolbar-title @click="$router.push('/')" class="display-1" style="cursor:pointer">Musician's Workflow</v-toolbar-title>
       <v-spacer></v-spacer> <!-- This pushes the following content to the right side -->
       <v-btn text @click="logout">Logout</v-btn>
     </v-app-bar>

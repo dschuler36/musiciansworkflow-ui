@@ -1,6 +1,7 @@
 <template>
   <div>
     <h1 :style="{ textAlign: 'center' }">{{ trackDetails.name }}</h1>
+    <!-- Workflow Stepper -->
     <v-stepper v-model="currentStage">
       <v-stepper-header>
         <template v-for="(stage, index) in stages" :key="index">
@@ -16,39 +17,6 @@
       </v-stepper-header>
     </v-stepper>
     <!-- Track Details Card -->
-    <!-- <v-card class="mt-5">
-      <v-card-title class="headline">Track Details</v-card-title>
-      <v-card-text>
-        <v-container>
-          <v-row>
-            <v-col cols="12" md="6">
-              <v-subheader>Goal</v-subheader>
-              <v-chip>{{ formatDate(trackDetails.goalDate) }}</v-chip>
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-subheader>Notes for {{ currentStageName }}</v-subheader>
-              <div>
-                <v-card 
-                  v-for="(note, index) in filteredNotes" 
-                  :key="index"
-                  class="my-2 pa-2"
-                  outlined
-                >
-                  <v-card-title>{{ note.note_text }}</v-card-title>
-                  <v-card-subtitle>{{ formatDate(note.timestamp) }}</v-card-subtitle>
-                </v-card>
-              </div>
-
-              <v-btn color="primary" @click="dialog = true">
-                <v-icon>mdi-plus</v-icon>Create Note
-              </v-btn>
-
-            </v-col>
-          </v-row>
-        </v-container>
-      </v-card-text>
-    </v-card> -->
-
     <v-card class="mt-5">
       <v-card-title class="headline">Track Details</v-card-title>
       <v-card-text>
@@ -70,7 +38,7 @@
                   class="my-2 pa-2"
                   outlined
                 >
-                  <v-card-title>{{ note.note_text }}</v-card-title>
+                  <v-card-title v-html="formattedNoteText(note.note_text)"></v-card-title>
                   <v-card-subtitle>{{ formatDate(note.timestamp) }}</v-card-subtitle>
                 </v-card>
               </div>
@@ -82,6 +50,7 @@
         </v-container>
       </v-card-text>
     </v-card>
+    <!-- Note Creation Button -->
     <v-dialog v-model="dialog" persistent max-width="600px">
       <v-card>
         <v-card-title class="text-h6">
@@ -210,8 +179,14 @@
     methods: {
       formatDate(date) {
         return new Date(date).toLocaleDateString();
+      },
+
+      formattedNoteText(text) {
+        return text.replace(/\n/g, '<br>');
       }
     }
+
+
   };
 </script>
 
