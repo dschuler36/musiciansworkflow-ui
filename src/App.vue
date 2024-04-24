@@ -46,3 +46,8 @@ export default {
   }
 }
 </script>
+<style>
+html, body, .v-application {
+  font-family: 'Roboto', sans-serif; /* Or your chosen font */
+}
+</style>

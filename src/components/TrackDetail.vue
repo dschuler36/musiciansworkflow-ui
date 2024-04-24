@@ -1,87 +1,90 @@
 <template>
-  <div>
-    <br/>
-    <h2 class="text-h2" :style="{ textAlign: 'center' }">{{ trackDetails.name }}</h2>
-    <br/>
-    <!-- Workflow Stepper -->
-    <v-stepper v-model="currentStage">
-      <v-stepper-header>
-        <template v-for="(stage, index) in stages" :key="index">
-          <v-stepper-item
-            :title="stage"
-            :value="index + 1"
-            :complete="index + 1 < currentStage || (stage === 'Released' && index + 1 === currentStage)"
-            :editable="true"
-            @click="promptStageChange(stage, index + 1)"
-          ></v-stepper-item>
-          <v-divider v-if="index < stages.length - 1"></v-divider>
-        </template>
-      </v-stepper-header>
-    </v-stepper>
-    <!-- Track Details Card -->
-    <v-card class="mt-5">
-      <v-card-title class="headline">Track Details</v-card-title>
-      <v-card-text>
-        <v-container>
-          <v-row>
-            <!-- Goal at the top spanning full width -->
-            <v-col cols="12">
-              <v-subheader>Goal</v-subheader>
-              <v-chip>{{ formatDate(trackDetails.goalDate) }}</v-chip>
-            </v-col>
-            <!-- Notes span the full width below the Goal -->
-            <v-col cols="12">
-              <v-subheader> {{ currentStageName }} Notes</v-subheader>
-              <div>
-                <v-card 
-                  v-for="(note, index) in filteredNotes" 
-                  :key="note.note_id"
-                  class="my-2 pa-2"
-                  outlined
-                >
-                  <v-card-title v-html="formattedNoteText(note.note_text)"></v-card-title>
-                  <v-card-subtitle>{{ formatDate(note.timestamp) }}</v-card-subtitle>
-                  <v-card-actions>
-                    <v-btn icon @click="openEditNoteDialog(note, index)">
-                      <v-icon>mdi-pencil</v-icon>
-                    </v-btn>
-                    <v-btn icon @click="deleteNote(note, index)">
-                      <v-icon>mdi-delete</v-icon>
-                    </v-btn>
-                  </v-card-actions>
-                </v-card>
-              </div>
-              <v-btn color="primary" @click="openCreateNoteDialog">
-                <v-icon>mdi-plus</v-icon> Create Note
-              </v-btn>
-            </v-col>
-          </v-row>
-        </v-container>
-      </v-card-text>
-    </v-card>
-    <!-- Dialog for Note Creation and Update -->
-    <v-dialog v-model="dialog" persistent max-width="600px">
-      <v-card>
-        <v-card-title class="text-h6">{{ dialogTitle }}</v-card-title>
+  <v-app>
+    <div>
+      <br/>
+      <h2 class="text-h2" :style="{ textAlign: 'center' }">{{ trackDetails.name }}</h2>
+      <br/>
+      <!-- Workflow Stepper -->
+      <v-stepper v-model="currentStage">
+        <v-stepper-header>
+          <template v-for="(stage, index) in stages" :key="index">
+            <v-stepper-item
+              :title="stage"
+              :value="index + 1"
+              :complete="index + 1 < currentStage || (stage === 'Released' && index + 1 === currentStage)"
+              :editable="true"
+              @click="promptStageChange(stage, index + 1)"
+            ></v-stepper-item>
+            <v-divider v-if="index < stages.length - 1"></v-divider>
+          </template>
+        </v-stepper-header>
+      </v-stepper>
+      <!-- Track Details Card -->
+      <v-card class="mt-5">
+        <v-card-title class="headline">Track Details</v-card-title>
         <v-card-text>
-          <v-textarea
-            v-model="newNoteText"
-            label="Note text"
-            auto-grow
-            rows="2"
-            maxlength="500"
-          ></v-textarea>
+          <v-container>
+            <v-row>
+              <!-- Goal at the top spanning full width -->
+              <v-col cols="12">
+                <v-subheader>Goal</v-subheader>
+                <v-chip>{{ formatDate(trackDetails.goalDate) }}</v-chip>
+              </v-col>
+              <!-- Notes span the full width below the Goal -->
+              <v-col cols="12">
+                <v-subheader  class="text-subtitle-1"> {{ currentStageName }} Notes</v-subheader>
+                <div>
+                  <v-card
+                    v-for="(note, index) in filteredNotes" 
+                    :key="note.note_id"
+                    class="my-2 pa-2"
+                    outlined
+                  >
+                    <v-card-subtitle v-html="formattedNoteText(note.note_text)"></v-card-subtitle>
+                    <br/>
+                    <v-card-subtitle>{{ formatDate(note.timestamp) }}</v-card-subtitle>
+                    <v-card-actions>
+                      <v-btn icon @click="openEditNoteDialog(note, index)">
+                        <v-icon>mdi-pencil</v-icon>
+                      </v-btn>
+                      <v-btn icon @click="deleteNote(note, index)">
+                        <v-icon>mdi-delete</v-icon>
+                      </v-btn>
+                    </v-card-actions>
+                  </v-card>
+                </div>
+                <v-btn color="primary" @click="openCreateNoteDialog">
+                  <v-icon>mdi-plus</v-icon> Create Note
+                </v-btn>
+              </v-col>
+            </v-row>
+          </v-container>
         </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="blue darken-1" text @click="dialog = false">Cancel</v-btn>
-          <v-btn color="blue darken-1" text @click="saveNote">{{ editingNoteIndex !== null ? 'Update' : 'Save' }}</v-btn>
-        </v-card-actions>
       </v-card>
-    </v-dialog>
-    <!-- Flash Message Display -->
-    <div v-if="flashMessage" class="flash-notification">{{ flashMessage }}</div>
-  </div>
+      <!-- Dialog for Note Creation and Update -->
+      <v-dialog v-model="dialog" persistent max-width="600px">
+        <v-card>
+          <v-card-title class="text-h6">{{ dialogTitle }}</v-card-title>
+          <v-card-text>
+            <v-textarea
+              v-model="newNoteText"
+              label="Note text"
+              auto-grow
+              rows="2"
+              maxlength="500"
+            ></v-textarea>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn color="blue darken-1" text @click="dialog = false">Cancel</v-btn>
+            <v-btn color="blue darken-1" text @click="saveNote">Save</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+      <!-- Flash Message Display -->
+      <div v-if="flashMessage" class="flash-notification">{{ flashMessage }}</div>
+    </div>
+  </v-app>
 </template>
     
 <script>
@@ -142,13 +145,6 @@
       };
 
       const openEditNoteDialog = (note, index) => {
-        // console.log('inside openEditNoteDialog');
-        // dialogTitle.value = 'Edit Note';
-        // newNoteText.value = note.note_text;
-        // console.log('newNoteText.value ', newNoteText.value);
-        // editingNoteIndex.value = index;
-        // console.log('editingNoteIndex.value', editingNoteIndex.value);
-        // dialog.value = true;
         const fullNoteIndex = trackDetails.value.notes.findIndex(n => n.note_id === note.note_id);
         if (fullNoteIndex !== -1) {
           dialogTitle.value = 'Edit Note';
@@ -176,8 +172,6 @@
       };
 
       const updateNote = (note, updateText) => {
-        // TODO: the wrong note is coming in here
-        console.log('Inside updateNote. Note: ', note);
         axios.patch(`/notes/${note.note_id}`, { note_text: updateText })
           .then(() => {
             const noteIndex = trackDetails.value.notes.findIndex(n => n.note_id === note.note_id);
