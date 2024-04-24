@@ -1,6 +1,8 @@
 <template>
   <div>
-    <h1 :style="{ textAlign: 'center' }">{{ trackDetails.name }}</h1>
+    <br/>
+    <h2 class="text-h2" :style="{ textAlign: 'center' }">{{ trackDetails.name }}</h2>
+    <br/>
     <!-- Workflow Stepper -->
     <v-stepper v-model="currentStage">
       <v-stepper-header>
@@ -27,35 +29,40 @@
               <v-subheader>Goal</v-subheader>
               <v-chip>{{ formatDate(trackDetails.goalDate) }}</v-chip>
             </v-col>
-
             <!-- Notes span the full width below the Goal -->
             <v-col cols="12">
               <v-subheader> {{ currentStageName }} Notes</v-subheader>
               <div>
                 <v-card 
                   v-for="(note, index) in filteredNotes" 
-                  :key="index"
+                  :key="note.note_id"
                   class="my-2 pa-2"
                   outlined
                 >
                   <v-card-title v-html="formattedNoteText(note.note_text)"></v-card-title>
                   <v-card-subtitle>{{ formatDate(note.timestamp) }}</v-card-subtitle>
+                  <v-card-actions>
+                    <v-btn icon @click="openEditNoteDialog(note, index)">
+                      <v-icon>mdi-pencil</v-icon>
+                    </v-btn>
+                    <v-btn icon @click="deleteNote(note, index)">
+                      <v-icon>mdi-delete</v-icon>
+                    </v-btn>
+                  </v-card-actions>
                 </v-card>
               </div>
-              <v-btn color="primary" @click="dialog = true">
-                <v-icon>mdi-plus</v-icon>Create Note
+              <v-btn color="primary" @click="openCreateNoteDialog">
+                <v-icon>mdi-plus</v-icon> Create Note
               </v-btn>
             </v-col>
           </v-row>
         </v-container>
       </v-card-text>
     </v-card>
-    <!-- Note Creation Button -->
+    <!-- Dialog for Note Creation and Update -->
     <v-dialog v-model="dialog" persistent max-width="600px">
       <v-card>
-        <v-card-title class="text-h6">
-          Create a New Note
-        </v-card-title>
+        <v-card-title class="text-h6">{{ dialogTitle }}</v-card-title>
         <v-card-text>
           <v-textarea
             v-model="newNoteText"
@@ -68,10 +75,12 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="blue darken-1" text @click="dialog = false">Cancel</v-btn>
-          <v-btn color="blue darken-1" text @click="saveNote">Save</v-btn>
+          <v-btn color="blue darken-1" text @click="saveNote">{{ editingNoteIndex !== null ? 'Update' : 'Save' }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <!-- Flash Message Display -->
+    <div v-if="flashMessage" class="flash-notification">{{ flashMessage }}</div>
   </div>
 </template>
     
@@ -86,107 +95,134 @@
       const route = useRoute();
       const trackId = ref(route.params.trackId);
       const stages = ['Writing', 'Recording', 'Mixing', 'Mastering', 'Released'];
-      const trackDetails = ref({
-        stage: '',
-        notes: [],  // Initialize notes as an empty array
-        goalDate: '',
-        track_id: ''
-      });
-      const dialog = ref(false);  // Initialize the dialog state as closed
-      const newNoteText = ref("");  // Initialize new note text
+      const trackDetails = ref({ stage: '', notes: [], goalDate: '', track_id: '' });
+      const dialog = ref(false);
+      const newNoteText = ref("");
+      const flashMessage = ref('');
+      const dialogTitle = ref('Create a New Note');
+      const editingNoteIndex = ref(null);
+
+      const showFlashMessage = (message) => {
+        flashMessage.value = message;
+        setTimeout(() => flashMessage.value = '', 3000);
+      };
 
       const getTrackDetails = async () => {
         try {
           const response = await axios.get(`/tracks/${trackId.value}/full_details`);
           trackDetails.value = response.data;
+          console.log(trackDetails.value);
         } catch (error) {
           console.error('Failed to fetch track details:', error);
-          trackDetails.value = { stage: '', notes: [], goalDate: '', track_id: '' };  // Ensure default values on error
         }
       };
 
-      const currentStage = computed(() => {
-        return stages.indexOf(trackDetails.value.stage) + 1;
-      });
+      const currentStage = computed(() => stages.indexOf(trackDetails.value.stage) + 1);
+      const currentStageName = computed(() => stages[currentStage.value - 1]);
 
-      const currentStageName = computed(() => {
-        return stages[currentStage.value - 1];
-      });
+      const filteredNotes = computed(() => trackDetails.value.notes.filter(note => note.stage === currentStageName.value));
 
-      const filteredNotes = computed(() => {
-        if (!trackDetails.value.notes || !Array.isArray(trackDetails.value.notes)) {
-          return [];
+      const promptStageChange = (stage, stageNumber) => {
+        if (currentStage.value !== stageNumber && confirm(`Change stage to ${stage}?`)) {
+          updateStage(stage);
         }
-        return trackDetails.value.notes.filter(note => note.stage === currentStageName.value);
-      });
+      };
 
-      function promptStageChange(stage, stageNumber) {
-        if (currentStage.value !== stageNumber) {
-          if (confirm(`Change stage to ${stage}?`)) {
-            updateStage(stage);
-          }
-        }
-      }
-
-      function updateStage(newStage) {
+      const updateStage = (newStage) => {
         axios.patch(`/tracks/${trackId.value}`, { stage: newStage })
-        .then(() => {
-          trackDetails.value.stage = newStage;
-        })
-        .catch(error => {
-          console.error('Error updating the stage:', error);
-          alert('Failed to update the stage.');
+          .then(() => trackDetails.value.stage = newStage)
+          .catch(error => console.error('Error updating the stage:', error));
+      };
+
+      const openCreateNoteDialog = () => {
+        dialogTitle.value = 'Create Note';
+        newNoteText.value = '';
+        editingNoteIndex.value = null;
+        dialog.value = true;
+      };
+
+      const openEditNoteDialog = (note, index) => {
+        // console.log('inside openEditNoteDialog');
+        // dialogTitle.value = 'Edit Note';
+        // newNoteText.value = note.note_text;
+        // console.log('newNoteText.value ', newNoteText.value);
+        // editingNoteIndex.value = index;
+        // console.log('editingNoteIndex.value', editingNoteIndex.value);
+        // dialog.value = true;
+        const fullNoteIndex = trackDetails.value.notes.findIndex(n => n.note_id === note.note_id);
+        if (fullNoteIndex !== -1) {
+          dialogTitle.value = 'Edit Note';
+          newNoteText.value = trackDetails.value.notes[fullNoteIndex].note_text;
+          editingNoteIndex.value = fullNoteIndex;
+          dialog.value = true;
+        } else {
+          console.error('Note not found in the full list.');
+  }
+      };
+
+      const saveNote = () => {
+        if (!newNoteText.value.trim()) {
+          alert("Please enter some text for the note.");
+          return;
+        }
+        if (editingNoteIndex.value !== null) {
+          updateNote(trackDetails.value.notes[editingNoteIndex.value], newNoteText.value);
+        } else {
+          createNote({ stage: currentStageName.value, note_text: newNoteText.value });
+        }
+        newNoteText.value = "";
+        dialog.value = false;
+        editingNoteIndex.value = null;
+      };
+
+      const updateNote = (note, updateText) => {
+        // TODO: the wrong note is coming in here
+        console.log('Inside updateNote. Note: ', note);
+        axios.patch(`/notes/${note.note_id}`, { note_text: updateText })
+          .then(() => {
+            const noteIndex = trackDetails.value.notes.findIndex(n => n.note_id === note.note_id);
+            trackDetails.value.notes[noteIndex].note_text = updateText;
+          })
+          .catch(error => console.error('Failed to update the note:', error));
+      };
+
+      const deleteNote = (note, index) => {
+        if (confirm('Are you sure you want to delete this note?')) {
+          axios.delete(`/notes/${note.note_id}`)
+          .then(() => {
+            trackDetails.value.notes = trackDetails.value.notes.filter(n => n.note_id !== note.note_id);
+            showFlashMessage('Note deleted');
+          })
+          .catch(error => {
+          console.error('Failed to delete the note:', error);
+          alert('Failed to delete the note.');
         });
-      }
+      }};
 
-      
-    function saveNote() {
-      if (newNoteText.value.trim()) {
-        const newNoteData = {
-          text: newNoteText.value,
-          // include other data fields as required
-        };
-        createNote(newNoteData);
-        newNoteText.value = ""; // Clear input after saving
-        dialog.value = false; // Close dialog
-      } else {
-        alert("Please enter some text for the note.");
-      }
-    }
+      const createNote = (noteData) => {
+        axios.post(`/tracks/${trackId.value}/notes`, noteData)
+          .then(response => {
+            trackDetails.value.notes.push(response.data);
+            showFlashMessage('Note created');
+          })
+          .catch(error => console.error('Failed to create the note:', error));
+      };
 
-      function createNote(noteData) {
-        console.log(currentStageName.value);
-        console.log(noteData);
-        axios.post(`/tracks/${trackId.value}/notes`, { stage: currentStageName.value, note_text: noteData.text })
-        .then(response => {
-          trackDetails.value.notes.push(response.data); // Assuming response.data is the new note object
-          // getTrackDetails(trackId.value); could do this to repull the data to ensure consistency. err on side of speed for now.
-        })
-        .catch(error => {
-          console.error('Failed to create the note:', error);
-          alert('Failed to create the note.');
-        });
-      }
-
-      onMounted(() => {
-        getTrackDetails();
-      });
+      onMounted(getTrackDetails);
 
       return { trackDetails, stages, currentStage, currentStageName, filteredNotes, promptStageChange,
-               dialog, newNoteText, saveNote };
+               dialog, newNoteText, saveNote, deleteNote, flashMessage, updateNote, openEditNoteDialog, openCreateNoteDialog,
+               dialogTitle };
     },
 
     methods: {
       formatDate(date) {
         return new Date(date).toLocaleDateString();
       },
-
       formattedNoteText(text) {
         return text.replace(/\n/g, '<br>');
       }
     }
-
-
   };
 </script>
 
@@ -226,6 +262,24 @@
   .pa-2 {
     padding: 0.5rem;
   }
+
+  .flash-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.75);
+    border-radius: 5px;
+    z-index: 1050; 
+    animation: fadeOut 3s forwards;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 
   </style>

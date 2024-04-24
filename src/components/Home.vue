@@ -1,10 +1,10 @@
 <template>
     <v-container>
       <v-row justify="center">
-        <v-col cols="12" sm="8" md="6">
-          <h1>Welcome to Musicians Workflow</h1>
-          <p>This is the homepage of your application where you can manage your music projects effectively.</p>
-        </v-col>
+          <h1 v-text="'Musicians Workflow'" class="text-h1"></h1>
+          <br/>
+          <br/>
+          <h5 v-text="'Track your workflow. Set goals. Release more music.'" class="text-h5"></h5>
       </v-row>
     </v-container>
   </template>
