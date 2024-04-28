@@ -97,7 +97,7 @@
     setup() {
       const route = useRoute();
       const trackId = ref(route.params.trackId);
-      const stages = ['Writing', 'Recording', 'Mixing', 'Mastering', 'Released'];
+      const stages = ['Writing', 'Recording', 'Mixing', 'Mastering', 'Completed', 'Released'];
       const trackDetails = ref({ stage: '', notes: [], goalDate: '', track_id: '' });
       const dialog = ref(false);
       const newNoteText = ref("");
