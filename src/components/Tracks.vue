@@ -11,24 +11,27 @@
       </v-btn>
     </div>
 
-    <!-- Dialog for new track -->
     <v-dialog v-model="showDialog" persistent max-width="600px">
-      <v-card>
-        <v-card-title>
-          <span class="headline">New Track</span>
-        </v-card-title>
-        <v-card-text>
-          <v-container>
+    <v-card>
+      <v-card-title>
+        <span class="headline">New Track</span>
+      </v-card-title>
+      <v-card-text>
+        <v-container>
+          <v-form ref="trackFormRef">
             <v-row>
               <v-col cols="12">
-                <v-text-field label="Track Name" v-model="newTrack.name"></v-text-field>
+                <v-text-field 
+                  label="Track Name" 
+                  v-model="newTrack.name"
+                  :rules="nameRules"
+                  required
+                ></v-text-field>
               </v-col>
               <v-col cols="12">
                 <!-- Release Dropdown -->
-                <!-- <v-select label="Release" :items="releases" item-text="name" item-value="id" v-model="newTrack.releaseId" @click:prepend="openNewReleaseDialog"></v-select> -->
-                <!-- :menu="releaseMenuOpen" -->
-                <!-- :menu-props="{ closeOnContentClick: true }" -->
                 <v-select 
+                  ref="releaseDropdownCloser"
                   label="Release" 
                   :items="releases"
                   item-title="name"
@@ -37,12 +40,8 @@
                   v-model="newTrack.releaseId"
                   @change="handleReleaseSelection"
                 >
-                <!-- <VListItemTitle>{{ release.name }}</VListItemTitle> -->
                   <template v-slot:prepend-item>
-                    <v-list-item
-                      ripple
-                      @click="handleNewReleaseClick"
-                    >
+                    <v-list-item ripple @click="handleNewReleaseClick">
                       <v-list-item-content>
                         <v-list-item-title>+ Create New Release</v-list-item-title>
                       </v-list-item-content>
@@ -76,7 +75,7 @@
                     >
                       <template v-slot:activator="{ on, attrs }">
                         <v-text-field
-                          v-model="newRelease.date"
+                          v-model="releaseDate"
                           label="Release Date (optional)"
                           prepend-icon="mdi-calendar"
                           readonly
@@ -85,24 +84,37 @@
                           @click.stop="calendarToggle = true"
                         ></v-text-field>
                       </template>
-                      <v-date-picker v-model="newRelease.date" @input="calendarToggle = false"></v-date-picker>
+                      <v-date-picker v-model="releaseDate" @click="handleDateChange"></v-date-picker>
+                      <!-- <v-date-picker v-model="newRelease.date" @input="calendarToggle = false"></v-date-picker> -->
+                      <!-- <v-container>
+                        <v-date-picker v-model="myDate"></v-date-picker>
+                      </v-container>
+                      <p>Selected date: {{ dateAsString }}</p> -->
+
                     </v-menu>
                   </v-col>
                 </v-row>
               </v-col>
               <v-col cols="12">
-                <v-select label="Current Stage" :items="stages" v-model="newTrack.stage"></v-select>
+                <v-select 
+                  label="Current Stage" 
+                  :items="stages" 
+                  v-model="newTrack.stage"
+                  :rules="stageRules"
+                  required
+                ></v-select>
               </v-col>
             </v-row>
-          </v-container>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="blue darken-1" text @click="showDialog = false">Cancel</v-btn>
-          <v-btn color="blue darken-1" text @click="submitNewTrack()">Save</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+          </v-form>
+        </v-container>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="blue darken-1" text @click="showDialog = false">Cancel</v-btn>
+        <v-btn color="blue darken-1" text @click="submitNewTrack()">Save</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
     <!-- New Release Dialog -->
     <v-dialog v-model="newReleaseDialog" persistent max-width="500px">
@@ -194,7 +206,7 @@
 
 
 <script>
-import { ref, onMounted, computed, nextTick  } from 'vue';
+import { ref, onMounted, computed, nextTick, watch   } from 'vue';
 import axios from 'axios';
 
 export default {
@@ -221,12 +233,20 @@ export default {
     const trackDialog = ref(true);  // Initially show track dialog
     const goalsDialog = ref(false);
     const newGoals = ref({});
-    const newRelease = ref({ name: '', release_type: '', release_date: '' });
+    const newRelease = ref({ name: '', release_type: '',   release_date: ''});
+    const releaseDate = ref([new Date()]);
     const newReleaseDialog = ref(false);
     const releases = ref([]);
     const showNewReleaseForm = ref(false);
     const releaseMenuOpen = ref(false); // Controls the opening of the release dropdown
     const calendarToggle = ref(false);
+    const releaseDropdownCloser = ref(null);
+    const trackFormRef = ref(null);
+
+
+    // Validation rules
+    const nameRules = [v => !!v || 'Track Name is required'];
+    const stageRules = [v => !!v || 'Current Stage is required'];
 
 
     // Compute goals input visibility based on current stage
@@ -252,28 +272,30 @@ export default {
     };
 
     const submitNewTrack = async () => {
-      if (showNewReleaseForm.value && newRelease.value.name) {
-        await createRelease();  // Create the release first
-      }
-      try {
-        const trackData = {
-          name: newTrack.value.name,
-          release_id: newTrack.value.releaseId,
-          stage: newTrack.value.stage
-        };
-        console.log('new track before posting', trackData);
-        const response = await axios.post(`/users/${userId.value}/tracks`, trackData);
-        newTrack.value.track_id = response.data.track_id;
-        showDialog.value = false;
-        initializeNewGoals();
-        // console.log('new track after posting', newTrack);
-        // trackDialog.value = false;
-        // stages.forEach(stage => { newGoals.value[stage] = ''; });  // Prepare goals form
-        // trackDialog.value = false;
-        goalsDialog.value = true;  // Open goals dialog
-        fetchTracks();
-      } catch (error) {
-        console.error('Failed to submit new track:', error);
+      console.log('trackformref', trackFormRef.value);
+      if (trackFormRef.value.validate()) {
+        if (showNewReleaseForm.value && newRelease.value.name) {
+          await createRelease();  // Create the release first
+        }
+        try {
+          const trackData = {
+            name: newTrack.value.name,
+            stage: newTrack.value.stage
+          };
+
+          // Add release_id only if it is populated
+          if (newTrack.value.releaseId) {
+            trackData.release_id = newTrack.value.releaseId;
+          }
+          console.log('new track before posting', trackData);
+          const response = await axios.post(`/users/${userId.value}/tracks`, trackData);
+          newTrack.value.track_id = response.data.track_id;
+          showDialog.value = false;
+          initializeNewGoals();
+          fetchTracks();
+        } catch (error) {
+          console.error('Failed to submit new track:', error);
+        }
       }
     };
 
@@ -344,7 +366,9 @@ export default {
 
     const handleNewReleaseClick = async () => {
       toggleNewReleaseForm(true);
-      this.$refs.yourSelectReference.blur();
+      if (releaseDropdownCloser.value) {
+        releaseDropdownCloser.value.blur();
+      }
       // releaseMenuOpen.value = false;  // Close the dropdown menu
     };
 
@@ -387,6 +411,40 @@ export default {
       }
     };
 
+    const handleDateChange = (newValue) => {
+      console.log('newValue in handleDateChange', newValue);
+      console.log(releaseDate.value);
+      const dateString = releaseDate.value[0].toISOString().substring(0, 10);
+      const formattedDate = formatDate(dateString);
+      if (formattedDate !== newRelease.value.release_date) {
+        newRelease.value.release_date = formattedDate;
+      }
+    };
+
+    function formatDate(date) {
+      console.log('date in formatDate', date);
+      if (typeof date === 'string') {
+        const parsedDate = new Date(date);
+        console.log('parsedDate', parsedDate);
+        if (!isNaN(parsedDate.valueOf())) { // Check valid date
+          const formattedDate = parsedDate.toISOString().substring(0, 10);
+          console.log('formattedDate', formattedDate);
+          if (formattedDate !== date) {
+            return formattedDate;
+          }
+        }
+      }
+      return date; // Return as is if no formatting is needed
+    };
+
+    // watch(() => releaseDate.value, (newValue, oldValue) => {
+    //   console.log('watch: newRelease.value.release_date: ', newRelease.value.release_date);
+    //   const formattedDate = formatDate(newValue);
+    //   if (formattedDate !== oldValue) { // Update only if different
+    //     newRelease.value.release_date = formattedDate;
+    //   }
+    // });
+
 
     onMounted(() => {
       fetchTracks();
@@ -395,8 +453,8 @@ export default {
 
     return { page, tracks, showDialog, newTrack, submitNewTrack, goalsInputVisible, stages,
              submitGoals, trackDialog, goalsDialog, newGoals, createRelease, openNewReleaseDialog, checkForNewRelease,
-             toggleNewReleaseForm, handleReleaseSelection, showNewReleaseForm, newRelease,
-            newReleaseDialog, handleNewReleaseClick, calendarToggle, releases};
+             toggleNewReleaseForm, handleReleaseSelection, showNewReleaseForm, newRelease, handleDateChange, releaseDate,
+            newReleaseDialog, calendarToggle, releases, handleNewReleaseClick, releaseDropdownCloser, nameRules, stageRules, trackFormRef };
   },
   methods: {
     getStageColor(stage) {
@@ -418,11 +476,11 @@ export default {
   toggleDatePicker() {
       this.calendarToggle = !this.calendarToggle;
   },
-  formatDate(date) {
-    if (!date) return null;
-    const d = new Date(date);
-    return d.toISOString().slice(0, 10);  // Extracts 'YYYY-MM-DD' from the ISO string
-  },
+  // formatDate(date) {
+  //   if (!date) return null;
+  //   const d = new Date(date);
+  //   return d.toISOString().slice(0, 10);  // Extracts 'YYYY-MM-DD' from the ISO string
+  // },
   updateDate(date) {
     this.newRelease.date = this.formatDate(date);
   }
@@ -433,14 +491,14 @@ computed: {
     const validStages = ['writing', 'recording', 'mixing', 'mastering', 'released'];
     return validStages.includes(stage) ? `stage-${stage}` : 'stage-default';
   }
-},
-watch: {
-  'newRelease.date': function (newValue, oldValue) {
-    if (newValue !== oldValue) {
-      this.newRelease.date = this.formatDate(newValue);
-    }
-  }
 }
+// watch: {
+//   'newRelease.date': function (newValue, oldValue) {
+//     if (newValue !== oldValue) {
+//       this.newRelease.date = this.formatDate(newValue);
+//     }
+//   }
+// }
 };
 
 </script>

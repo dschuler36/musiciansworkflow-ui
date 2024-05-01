@@ -25,14 +25,30 @@
         <v-card-text>
           <v-container>
             <v-row>
-              <!-- Goal at the top spanning full width -->
               <v-col cols="12">
-                <v-subheader>Goal</v-subheader>
-                <v-chip>{{ formatDate(trackDetails.goalDate) }}</v-chip>
+                <p class="text-subtitle-1">Goal</p>
+                <v-menu
+                  class="custom-menu-position"
+                  ref="menu"
+                  v-model="showCalendar"
+                  :close-on-content-click="false"
+                  absolute
+                  style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"
+                  transition="scale-transition"
+                  offset-y
+                  min-width="auto"
+                >
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-chip prepend-icon="mdi-calendar" v-bind="attrs" @click="toggleCalendar" v-on="on">
+                      {{ formatGoalDate }}
+                    </v-chip>
+                  </template>
+                  <v-date-picker v-model="goalDate" @click="handleDateChange"></v-date-picker>
+                </v-menu>
               </v-col>
               <!-- Notes span the full width below the Goal -->
               <v-col cols="12">
-                <v-subheader  class="text-subtitle-1"> {{ currentStageName }} Notes</v-subheader>
+                <p class="text-subtitle-1"> {{ currentStageName }} Notes</p>
                 <div>
                   <v-card
                     v-for="(note, index) in filteredNotes" 
@@ -88,7 +104,7 @@
 </template>
     
 <script>
-  import { ref, onMounted, computed } from 'vue';
+  import { ref, onMounted, computed, watchEffect, watch  } from 'vue';
   import axios from 'axios';
   import { useRoute } from 'vue-router';
 
@@ -104,6 +120,18 @@
       const flashMessage = ref('');
       const dialogTitle = ref('Create a New Note');
       const editingNoteIndex = ref(null);
+      const menu = ref(false);
+      const showCalendar = ref(false);
+      const goalDate = ref(null);
+
+    //   watchEffect(() => {
+    //     console.log(`Menu value changed: ${menu.value}`, 'Type of value:', typeof menu.value);
+    // });
+
+    // watch(showCalendar, (newValue, oldValue) => {
+    //   console.log(`showCalendar changed from`, oldValue, `to`, newValue);
+    //   console.log(`Type of new value: ${typeof newValue}`);
+    // }, { immediate: true, deep: true });
 
       const showFlashMessage = (message) => {
         flashMessage.value = message;
@@ -202,11 +230,51 @@
           .catch(error => console.error('Failed to create the note:', error));
       };
 
-      onMounted(getTrackDetails);
+      const formatGoalDate = computed(() => {
+        if (!goalDate.value) return 'Set a Goal';
+        return new Date(goalDate.value).toLocaleDateString();
+      });
+
+      const toggleCalendar = () => {
+        showCalendar.value = !showCalendar.value;
+      };
+
+      // const toggleMenu = (event) => {
+      //   console.log("toggleMenu called");
+      //   event.preventDefault();
+      //   event.stopPropagation(); // Prevent event bubbling that might inadvertently open the menu
+      //   menu.value = !menu.value;
+      // };
+
+      const handleDateChange = (date) => {
+        console.log("Date picked:", date);  // Check what date is being passed
+        goalDate.value = new Date(goalDate.value).toISOString().slice(0, 10);
+        showCalendar.value = false;
+        console.log(currentStageName.value);
+        const key = `${currentStageName.value.toLowerCase()}_goal`;
+        const payload = {
+          [key]: goalDate.value
+        };
+        console.log('payload', payload);
+        axios.post(`/tracks/${trackId.value}/goals`, payload)
+        console.log(goalDate.value);
+      };
+
+      watch(goalDate, (newValue, oldValue) => {
+        if (newValue !== oldValue) {
+          goalDate.value = formatDateForAPI(newValue);
+        }
+      });
+
+
+      onMounted(() => {
+        getTrackDetails();
+        menu.value = false;
+    });
 
       return { trackDetails, stages, currentStage, currentStageName, filteredNotes, promptStageChange,
                dialog, newNoteText, saveNote, deleteNote, flashMessage, updateNote, openEditNoteDialog, openCreateNoteDialog,
-               dialogTitle };
+               dialogTitle, formatGoalDate, goalDate, showCalendar, toggleCalendar, handleDateChange };
     },
 
     methods: {
@@ -215,6 +283,11 @@
       },
       formattedNoteText(text) {
         return text.replace(/\n/g, '<br>');
+      },
+      formateDateForAPI(date) {
+        if (!date) return null;
+        const d = new Date(date);
+        return d.toISOString().slice(0, 10);
       }
     }
   };
