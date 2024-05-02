@@ -11,6 +11,28 @@
       </v-btn>
     </div>
 
+    <v-container>
+      <v-row align="center" justify="space-around">
+        <v-col cols="4" sm="3">
+          <v-card>
+            <v-card-title class="headline">Track Summary</v-card-title>
+            <v-card-text>
+              <v-list dense>
+                <v-list-item v-for="(count, stage) in trackCounts" :key="stage">
+                  <v-list-item-content>
+                    <v-list-item-title>{{ stage }}</v-list-item-title>
+                  </v-list-item-content>
+                  <v-list-item-content class="text-right">
+                    <v-list-item-subtitle>{{ count }}</v-list-item-subtitle>
+                  </v-list-item-content>
+                </v-list-item>
+              </v-list>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+    </v-container>
+
     <v-dialog v-model="showDialog" persistent max-width="600px">
     <v-card>
       <v-card-title>
@@ -234,7 +256,7 @@ export default {
     const goalsDialog = ref(false);
     const newGoals = ref({});
     const newRelease = ref({ name: '', release_type: '',   release_date: ''});
-    const releaseDate = ref([new Date()]);
+    const releaseDate = ref(null); 
     const newReleaseDialog = ref(false);
     const releases = ref([]);
     const showNewReleaseForm = ref(false);
@@ -242,6 +264,7 @@ export default {
     const calendarToggle = ref(false);
     const releaseDropdownCloser = ref(null);
     const trackFormRef = ref(null);
+    const trackCounts = ref({});
 
 
     // Validation rules
@@ -265,7 +288,10 @@ export default {
       console.log('from fetchTracks', calendarToggle);
       try {
         const response = await axios.get(`/users/${userId.value}/tracks`);
+        console.log('tracks', response);
         tracks.value = response.data;
+        trackCounts.value = countTracksByStage();
+        console.log(trackCounts);
       } catch (error) {
         console.error('Failed to fetch tracks:', error);
       }
@@ -274,18 +300,24 @@ export default {
     const submitNewTrack = async () => {
       console.log('trackformref', trackFormRef.value);
       if (trackFormRef.value.validate()) {
+        let newReleaseData; // Define newReleaseData variable outside the if block
+
         if (showNewReleaseForm.value && newRelease.value.name) {
-          await createRelease();  // Create the release first
+          newReleaseData = await createRelease(); // Assign the created release data
         }
+
         try {
           const trackData = {
             name: newTrack.value.name,
-            stage: newTrack.value.stage
+            stage: newTrack.value.stage,
           };
 
-          // Add release_id only if it is populated
           if (newTrack.value.releaseId) {
+            // existing release
             trackData.release_id = newTrack.value.releaseId;
+          } else if (newReleaseData && newReleaseData.data.release_id) {
+            // newly created release
+            trackData.release_id = newReleaseData.data.release_id;
           }
           console.log('new track before posting', trackData);
           const response = await axios.post(`/users/${userId.value}/tracks`, trackData);
@@ -330,7 +362,6 @@ export default {
     if (Object.keys(goalsPayload).length > 0) {
       try {
         await axios.post(`/tracks/${newTrack.value.track_id}/goals`, goalsPayload );
-        console.log("Goals saved successfully");
       } catch (error) {
         console.error('Error submitting goals:', error);
       }
@@ -348,7 +379,6 @@ export default {
       try {
         const response = await axios.get(`/users/${userId.value}/releases`);
         releases.value = response.data;
-        console.log('releases', releases.value);
       } catch (error) {
         console.error('Failed to fetch releases:', error);
       }
@@ -388,14 +418,15 @@ export default {
         if (newRelease.value.type !== undefined) {
           postData.release_type = newRelease.value.type;
         }
-        if (newRelease.value.date !== undefined) {
-          postData.release_date = newRelease.value.date;
+        if (releaseDate.value !== undefined) {
+          postData.release_date = releaseDate.value;
         }
-        console.log('release data', postData);
         const response = await axios.post(`/users/${userId.value}/releases`, postData);
+        console.log('new release response', response);
         releases.value.push(response.data);
-        newTrack.value.releaseId = response.data.id; // Automatically select the new release
+        newTrack.value.releaseId = response.data.id;
         toggleNewReleaseForm(false);
+        return response;
       } catch (error) {
         console.error('Failed to create new release:', error);
       }
@@ -412,38 +443,44 @@ export default {
     };
 
     const handleDateChange = (newValue) => {
-      console.log('newValue in handleDateChange', newValue);
-      console.log(releaseDate.value);
-      const dateString = releaseDate.value[0].toISOString().substring(0, 10);
+      const dateString = releaseDate.value.toISOString().substring(0, 10);
       const formattedDate = formatDate(dateString);
-      if (formattedDate !== newRelease.value.release_date) {
-        newRelease.value.release_date = formattedDate;
+      if (formattedDate !== releaseDate.value) {
+        releaseDate.value = formattedDate;
       }
     };
 
     function formatDate(date) {
-      console.log('date in formatDate', date);
       if (typeof date === 'string') {
         const parsedDate = new Date(date);
-        console.log('parsedDate', parsedDate);
-        if (!isNaN(parsedDate.valueOf())) { // Check valid date
+        if (!isNaN(parsedDate.valueOf())) {
           const formattedDate = parsedDate.toISOString().substring(0, 10);
-          console.log('formattedDate', formattedDate);
           if (formattedDate !== date) {
             return formattedDate;
           }
         }
       }
-      return date; // Return as is if no formatting is needed
+      return date;
     };
 
-    // watch(() => releaseDate.value, (newValue, oldValue) => {
-    //   console.log('watch: newRelease.value.release_date: ', newRelease.value.release_date);
-    //   const formattedDate = formatDate(newValue);
-    //   if (formattedDate !== oldValue) { // Update only if different
-    //     newRelease.value.release_date = formattedDate;
-    //   }
-    // });
+    function countTracksByStage() {
+      // Initialize an object to store the counts for each stage
+      const stageCounts = {};
+
+      // Loop through the tracks array
+      tracks.value.forEach(track => {
+        const stage = track.stage;
+        // If the stage is already in the stageCounts object, increment its count
+        if (stageCounts[stage]) {
+          stageCounts[stage]++;
+        } else {
+          // If the stage is not in the stageCounts object, initialize its count to 1
+          stageCounts[stage] = 1;
+        }
+      });
+
+      return stageCounts;
+    };
 
 
     onMounted(() => {
@@ -451,7 +488,7 @@ export default {
       fetchReleases();
     })
 
-    return { page, tracks, showDialog, newTrack, submitNewTrack, goalsInputVisible, stages,
+    return { page, tracks, showDialog, newTrack, submitNewTrack, goalsInputVisible, stages, trackCounts,
              submitGoals, trackDialog, goalsDialog, newGoals, createRelease, openNewReleaseDialog, checkForNewRelease,
              toggleNewReleaseForm, handleReleaseSelection, showNewReleaseForm, newRelease, handleDateChange, releaseDate,
             newReleaseDialog, calendarToggle, releases, handleNewReleaseClick, releaseDropdownCloser, nameRules, stageRules, trackFormRef };
@@ -476,11 +513,6 @@ export default {
   toggleDatePicker() {
       this.calendarToggle = !this.calendarToggle;
   },
-  // formatDate(date) {
-  //   if (!date) return null;
-  //   const d = new Date(date);
-  //   return d.toISOString().slice(0, 10);  // Extracts 'YYYY-MM-DD' from the ISO string
-  // },
   updateDate(date) {
     this.newRelease.date = this.formatDate(date);
   }
@@ -492,13 +524,6 @@ computed: {
     return validStages.includes(stage) ? `stage-${stage}` : 'stage-default';
   }
 }
-// watch: {
-//   'newRelease.date': function (newValue, oldValue) {
-//     if (newValue !== oldValue) {
-//       this.newRelease.date = this.formatDate(newValue);
-//     }
-//   }
-// }
 };
 
 </script>
